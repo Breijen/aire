@@ -27,8 +27,10 @@ impl Engine {
             &config.into(),
             move |data: &mut [f32], _| {
                 let mut mixer = mixer_clone.lock().unwrap();
-                for sample in data.iter_mut() {
-                    *sample = mixer.next_sample();
+                for frame in data.chunks_mut(2) {
+                    let (left, right) = mixer.next_sample();
+                    if let Some(l) = frame.get_mut(0) { *l = left; }
+                    if let Some(r) = frame.get_mut(1) { *r = right; }
                 }
             },
             |err| eprintln!("audio stream error: {}", err),

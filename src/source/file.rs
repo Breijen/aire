@@ -8,6 +8,7 @@ use crate::source::Source;
 pub struct FileSource {
     samples: Vec<f32>,
     current_pos: usize,
+    channels: usize,
 }
 
 impl FileSource {
@@ -42,7 +43,7 @@ impl FileSource {
 
         for sample in samples.iter_mut() { *sample *= db; }
 
-        Ok(Self { samples, current_pos: 0 })
+        Ok(Self { samples, current_pos: 0, channels })
     }
 
     fn resample(raw: Vec<f32>, device_rate: u32, file_rate: u32, channels: usize) -> Vec<f32> {
@@ -93,10 +94,17 @@ impl FileSource {
 }
 
 impl Source for FileSource {
-    fn next_sample(&mut self) -> f32 {
-        let sample = self.samples[self.current_pos];
-        self.current_pos += 1;
-        sample
+    fn next_sample(&mut self) -> (f32, f32) {
+        if self.channels == 2 {
+            let left = self.samples[self.current_pos];
+            let right = self.samples[self.current_pos + 1];
+            self.current_pos += 2;
+            (left, right)
+        } else {
+            let sample = self.samples[self.current_pos];
+            self.current_pos += 1;
+            (sample, sample)
+        }
     }
 
     fn is_finished(&self) -> bool {
