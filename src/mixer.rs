@@ -18,15 +18,16 @@ impl Mixer {
         self.sources.push(source);
     }
 
-    pub fn next_sample(&mut self) -> f32 {
+    pub fn next_sample(&mut self) -> (f32, f32) {
         self.sources.retain(|s| !s.is_finished());
 
-        let mut sum = self.sources.iter_mut()
+        let (left, right) = self.sources.iter_mut()
             .map(|s| s.next_sample())
-            .sum::<f32>();
+            .fold((0.0f32, 0.0f32), |(l, r), (sl, sr)| (l + sl, r + sr));
 
-        sum *= self.volume;
-
-        sum.clamp(-1.0, 1.0)
+        (
+            (left * self.volume).clamp(-1.0, 1.0),
+            (right * self.volume).clamp(-1.0, 1.0),
+        )
     }
 }
