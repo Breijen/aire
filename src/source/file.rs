@@ -8,6 +8,7 @@ pub struct FileSource {
     samples: Vec<f32>,
     current_pos: usize,
     channels: usize,
+    looping: bool,
 }
 
 impl FileSource {
@@ -38,7 +39,12 @@ impl FileSource {
             raw
         };
 
-        Ok(Self { samples, current_pos: 0, channels })
+        Ok(Self { samples, current_pos: 0, channels, looping: false })
+    }
+
+    pub fn looping(mut self) -> Self {
+        self.looping = true;
+        self
     }
 
     fn resample(raw: Vec<f32>, device_rate: u32, file_rate: u32, channels: usize) -> Vec<f32> {
@@ -90,19 +96,29 @@ impl FileSource {
 
 impl Source for FileSource {
     fn next_sample(&mut self) -> (f32, f32) {
-        if self.channels == 2 {
+        if self.current_pos >= self.samples.len() {
+            return (0.0, 0.0);
+        }
+
+        let sample = if self.channels == 2 {
             let left = self.samples[self.current_pos];
             let right = self.samples[self.current_pos + 1];
             self.current_pos += 2;
             (left, right)
         } else {
-            let sample = self.samples[self.current_pos];
+            let s = self.samples[self.current_pos];
             self.current_pos += 1;
-            (sample, sample)
+            (s, s)
+        };
+
+        if self.looping && self.current_pos >= self.samples.len() {
+            self.current_pos = 0;
         }
+
+        sample
     }
 
     fn is_finished(&self) -> bool {
-        self.current_pos >= self.samples.len()
+        !self.looping && self.current_pos >= self.samples.len()
     }
 }
