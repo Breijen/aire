@@ -5,9 +5,9 @@ edition = "2024"
 
 [dependencies]
 cpal = "0.17.3"
+crossbeam-channel = "0.5.15"
 dasp = "0.11.0"
 hound = "3.5.1"
-rtrb = "0.3.4"
 rubato = "3.0.0"
 
 [[example]]
