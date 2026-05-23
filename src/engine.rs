@@ -1,13 +1,26 @@
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use cpal::{SampleRate};
+use cpal::SampleRate;
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use rtrb::{Producer, RingBuffer};
+
+use crate::handle::SoundHandle;
 use crate::mixer::Mixer;
-use crate::source::Source;
+use crate::sound::Sound;
+
+pub type SoundId = u64;
+
+pub(crate) enum Command {
+    AddSound(SoundId, Box<Sound>),
+    Pause(SoundId),
+    Resume(SoundId),
+}
 
 pub struct Engine {
-    mixer: Arc<Mutex<Mixer>>,
+    tx: Arc<Mutex<Producer<Command>>>,
+    next_id: AtomicU64,
     _stream: cpal::Stream,
-    sample_rate: SampleRate
+    sample_rate: SampleRate,
 }
 
 impl Engine {
@@ -20,13 +33,15 @@ impl Engine {
         let config = device.default_output_config()?;
         let sample_rate = config.sample_rate();
 
-        let mixer = Arc::new(Mutex::new(Mixer::new(0.0)));
-        let mixer_clone = Arc::clone(&mixer);
+        let (producer, mut consumer) = RingBuffer::<Command>::new(256);
+        let mut mixer = Mixer::new(0.0);
 
         let stream = device.build_output_stream(
             &config.into(),
             move |data: &mut [f32], _| {
-                let mut mixer = mixer_clone.lock().unwrap();
+                while let Ok(cmd) = consumer.pop() {
+                    mixer.apply(cmd);
+                }
                 for frame in data.chunks_mut(2) {
                     let (left, right) = mixer.next_sample();
                     if let Some(l) = frame.get_mut(0) { *l = left; }
@@ -40,14 +55,18 @@ impl Engine {
         stream.play()?;
 
         Ok(Self {
-            mixer,
+            tx: Arc::new(Mutex::new(producer)),
+            next_id: AtomicU64::new(0),
             _stream: stream,
-            sample_rate
+            sample_rate,
         })
     }
 
-    pub fn add_source(&self, source: impl Source + 'static) {
-        self.mixer.lock().unwrap().add(Box::new(source));
+    pub fn add_sound(&self, sound: Sound) -> SoundHandle {
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        self.tx.lock().unwrap().push(Command::AddSound(id, Box::new(sound)))
+            .unwrap_or_else(|_| panic!("command buffer full"));
+        SoundHandle::new(id, Arc::clone(&self.tx))
     }
 
     pub fn sample_rate(&self) -> u32 {

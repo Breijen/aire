@@ -7,7 +7,8 @@ edition = "2024"
 cpal = "0.17.3"
 dasp = "0.11.0"
 hound = "3.5.1"
-rubato = "2.0.0"
+rtrb = "0.3.4"
+rubato = "3.0.0"
 
 [[example]]
 name = "sine"

@@ -1,28 +1,42 @@
-use crate::utils;
+use crate::engine::{Command, SoundId};
 use crate::source::Source;
+use crate::sound::Sound;
+use crate::utils;
 
 pub struct Mixer {
-    sources: Vec<Box<dyn Source>>,
-    volume: f32
+    sources: Vec<(SoundId, Box<Sound>)>,
+    volume: f32,
 }
 
 impl Mixer {
-    pub fn new(volume: f32) -> Self {
+    pub fn new(volume_db: f32) -> Self {
         Self {
             sources: Vec::new(),
-            volume: utils::convert_db(volume)
+            volume: utils::convert_db(volume_db),
         }
     }
 
-    pub fn add(&mut self, source: Box<dyn Source>) {
-        self.sources.push(source);
+    pub fn apply(&mut self, command: Command) {
+        match command {
+            Command::AddSound(id, sound) => self.sources.push((id, sound)),
+            Command::Pause(id) => {
+                if let Some((_, s)) = self.sources.iter_mut().find(|(sid, _)| *sid == id) {
+                    s.pause();
+                }
+            }
+            Command::Resume(id) => {
+                if let Some((_, s)) = self.sources.iter_mut().find(|(sid, _)| *sid == id) {
+                    s.resume();
+                }
+            }
+        }
     }
 
     pub fn next_sample(&mut self) -> (f32, f32) {
-        self.sources.retain(|s| !s.is_finished());
+        self.sources.retain(|(_, s)| !s.is_finished());
 
         let (left, right) = self.sources.iter_mut()
-            .map(|s| s.next_sample())
+            .map(|(_, s)| s.next_sample())
             .fold((0.0f32, 0.0f32), |(l, r), (sl, sr)| (l + sl, r + sr));
 
         (
