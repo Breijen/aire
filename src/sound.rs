@@ -127,6 +127,7 @@ impl Source for Sound {
 
     fn is_finished(&self) -> bool {
         matches!(self.state, State::Stopped)
-            || (self.source.is_finished() && self.effects.iter().any(|e| e.is_finished()))
+            || (self.source.is_finished()
+                && (self.effects.is_empty() || self.effects.iter().any(|e| e.is_finished())))
     }
 }
