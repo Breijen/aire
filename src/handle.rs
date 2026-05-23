@@ -1,24 +1,23 @@
-use std::sync::{Arc, Mutex};
-use rtrb::Producer;
+use crossbeam_channel::Sender;
 use crate::engine::{Command, SoundId};
 
 pub struct SoundHandle {
     id: SoundId,
-    tx: Arc<Mutex<Producer<Command>>>,
+    tx: Sender<Command>,
 }
 
 impl SoundHandle {
-    pub(crate) fn new(id: SoundId, tx: Arc<Mutex<Producer<Command>>>) -> Self {
+    pub(crate) fn new(id: SoundId, tx: Sender<Command>) -> Self {
         Self { id, tx }
     }
 
     pub fn pause(&self) {
-        self.tx.lock().unwrap().push(Command::Pause(self.id))
+        self.tx.try_send(Command::Pause(self.id))
             .unwrap_or_else(|_| panic!("command buffer full"));
     }
 
     pub fn resume(&self) {
-        self.tx.lock().unwrap().push(Command::Resume(self.id))
+        self.tx.try_send(Command::Resume(self.id))
             .unwrap_or_else(|_| panic!("command buffer full"));
     }
 }
