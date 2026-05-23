@@ -43,6 +43,7 @@ impl Engine {
 
         let (tx, rx) = bounded::<Command>(256);
         let mut mixer = Mixer::new(0.0);
+        let mut mixer_buffer: Vec<(f32, f32)> = Vec::new();
 
         let stream = device.build_output_stream(
             &config.into(),
@@ -50,8 +51,13 @@ impl Engine {
                 while let Ok(cmd) = rx.try_recv() {
                     mixer.apply(cmd);
                 }
-                for frame in data.chunks_mut(channels) {
-                    let (left, right) = mixer.next_sample();
+                let frames = data.len() / channels;
+                if mixer_buffer.len() < frames {
+                    mixer_buffer.resize(frames, (0.0, 0.0));
+                }
+                let buf = &mut mixer_buffer[..frames];
+                mixer.fill_buffer(buf);
+                for (frame, &(left, right)) in data.chunks_mut(channels).zip(buf.iter()) {
                     if let Some(l) = frame.get_mut(0) { *l = left; }
                     if let Some(r) = frame.get_mut(1) { *r = right; }
                 }

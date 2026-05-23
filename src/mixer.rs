@@ -6,6 +6,7 @@ use crate::utils;
 pub(crate) struct Mixer {
     sources: Vec<(SoundId, Box<Sound>)>,
     volume: f32,
+    scratch: Vec<(f32, f32)>,
 }
 
 impl Mixer {
@@ -13,6 +14,7 @@ impl Mixer {
         Self {
             sources: Vec::new(),
             volume: utils::convert_db(volume_db),
+            scratch: Vec::new(),
         }
     }
 
@@ -47,16 +49,27 @@ impl Mixer {
         }
     }
 
-    pub fn next_sample(&mut self) -> (f32, f32) {
+    pub fn fill_buffer(&mut self, buffer: &mut [(f32, f32)]) {
         self.sources.retain(|(_, s)| !s.is_finished());
+        buffer.fill((0.0, 0.0));
 
-        let (left, right) = self.sources.iter_mut()
-            .map(|(_, s)| s.next_sample())
-            .fold((0.0f32, 0.0f32), |(l, r), (sl, sr)| (l + sl, r + sr));
+        if self.scratch.len() < buffer.len() {
+            self.scratch.resize(buffer.len(), (0.0, 0.0));
+        }
+        let scratch = &mut self.scratch[..buffer.len()];
 
-        (
-            (left * self.volume).clamp(-1.0, 1.0),
-            (right * self.volume).clamp(-1.0, 1.0),
-        )
+        for (_, source) in &mut self.sources {
+            scratch.fill((0.0, 0.0));
+            source.fill_buffer(scratch);
+            for (out, inp) in buffer.iter_mut().zip(scratch.iter()) {
+                out.0 += inp.0;
+                out.1 += inp.1;
+            }
+        }
+
+        for frame in buffer.iter_mut() {
+            frame.0 = (frame.0 * self.volume).clamp(-1.0, 1.0);
+            frame.1 = (frame.1 * self.volume).clamp(-1.0, 1.0);
+        }
     }
 }

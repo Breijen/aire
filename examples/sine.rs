@@ -24,11 +24,13 @@ impl Sine {
 }
 
 impl Source for Sine {
-    fn next_sample(&mut self) -> (f32, f32) {
-        let sample = (self.phase * TAU).sin() * 0.3;
-        self.phase = (self.phase + self.frequency / self.sample_rate).fract();
-        self.elapsed += 1;
-        (sample, sample)
+    fn fill_buffer(&mut self, buffer: &mut [(f32, f32)]) {
+        for frame in buffer.iter_mut() {
+            let sample = (self.phase * TAU).sin() * 0.3;
+            self.phase = (self.phase + self.frequency / self.sample_rate).fract();
+            self.elapsed += 1;
+            *frame = (sample, sample);
+        }
     }
 
     fn is_finished(&self) -> bool {
