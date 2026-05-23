@@ -3,6 +3,7 @@ use crossbeam_channel::{bounded, Sender};
 use cpal::SampleRate;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
+use crate::error::AireError;
 use crate::handle::SoundHandle;
 use crate::mixer::Mixer;
 use crate::sound::Sound;
@@ -62,11 +63,11 @@ impl Engine {
         })
     }
 
-    pub fn add_sound(&self, sound: Sound) -> SoundHandle {
+    pub fn add_sound(&self, sound: Sound) -> Result<SoundHandle, AireError> {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         self.tx.try_send(Command::AddSound(id, Box::new(sound)))
-            .unwrap_or_else(|_| panic!("command buffer full"));
-        SoundHandle::new(id, self.tx.clone())
+            .map_err(|_| AireError::CommandBufferFull)?;
+        Ok(SoundHandle::new(id, self.tx.clone()))
     }
 
     pub fn sample_rate(&self) -> u32 {

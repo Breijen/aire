@@ -1,4 +1,5 @@
 mod engine;
+mod error;
 mod handle;
 mod mixer;
 mod source;
@@ -7,6 +8,7 @@ mod dsp;
 mod sound;
 
 pub use engine::Engine;
+pub use error::AireError;
 pub use handle::SoundHandle;
 pub use source::Source;
 pub use source::file::FileSource;
