@@ -109,6 +109,8 @@ impl Source for Oscillator {
                 Waveform::Triangle => {
                     let t_shifted = (t + 0.75).fract();
                     let naive = 4.0 * (t_shifted - 0.5).abs() - 1.0;
+                    // Slope changes by 8 at each corner,
+                    // so the BLAMP correction is scaled by that magnitude
                     naive
                         - 8.0 * poly_blamp((t - 0.25).rem_euclid(1.0), dt)
                         + 8.0 * poly_blamp((t - 0.75).rem_euclid(1.0), dt)
