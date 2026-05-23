@@ -26,4 +26,14 @@ impl SoundHandle {
         self.tx.try_send(Command::Stop(self.id))
             .map_err(|_| AireError::CommandBufferFull)
     }
+
+    pub fn set_volume(&self, db: f32) -> Result<(), AireError> {
+        self.tx.try_send(Command::SetVolume(self.id, db))
+            .map_err(|_| AireError::CommandBufferFull)
+    }
+
+    pub fn set_pan(&self, pan: f32) -> Result<(), AireError> {
+        self.tx.try_send(Command::SetPan(self.id, pan))
+            .map_err(|_| AireError::CommandBufferFull)
+    }
 }

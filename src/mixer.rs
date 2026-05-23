@@ -34,6 +34,16 @@ impl Mixer {
                     s.stop();
                 }
             }
+            Command::SetVolume(id, db) => {
+                if let Some((_, s)) = self.sources.iter_mut().find(|(sid, _)| *sid == id) {
+                    s.set_volume(db);
+                }
+            }
+            Command::SetPan(id, pan) => {
+                if let Some((_, s)) = self.sources.iter_mut().find(|(sid, _)| *sid == id) {
+                    s.set_pan(pan);
+                }
+            }
         }
     }
 
