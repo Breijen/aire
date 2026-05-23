@@ -107,27 +107,30 @@ impl FileSource {
 }
 
 impl Source for FileSource {
-    fn next_sample(&mut self) -> (f32, f32) {
-        if self.current_pos >= self.samples.len() {
-            return (0.0, 0.0);
+    fn fill_buffer(&mut self, buffer: &mut [(f32, f32)]) {
+        for frame in buffer.iter_mut() {
+            if self.current_pos >= self.samples.len() {
+                *frame = (0.0, 0.0);
+                continue;
+            }
+
+            let sample = if self.channels == 2 {
+                let left = self.samples[self.current_pos];
+                let right = self.samples[self.current_pos + 1];
+                self.current_pos += 2;
+                (left, right)
+            } else {
+                let s = self.samples[self.current_pos];
+                self.current_pos += 1;
+                (s, s)
+            };
+
+            if self.looping && self.current_pos >= self.samples.len() {
+                self.current_pos = 0;
+            }
+
+            *frame = sample;
         }
-
-        let sample = if self.channels == 2 {
-            let left = self.samples[self.current_pos];
-            let right = self.samples[self.current_pos + 1];
-            self.current_pos += 2;
-            (left, right)
-        } else {
-            let s = self.samples[self.current_pos];
-            self.current_pos += 1;
-            (s, s)
-        };
-
-        if self.looping && self.current_pos >= self.samples.len() {
-            self.current_pos = 0;
-        }
-
-        sample
     }
 
     fn is_finished(&self) -> bool {
@@ -142,30 +145,37 @@ mod tests {
     #[test]
     fn mono_duplicates_to_both_channels() {
         let mut src = FileSource::from_samples(vec![0.5, 0.8], 1);
-        assert_eq!(src.next_sample(), (0.5, 0.5));
-        assert_eq!(src.next_sample(), (0.8, 0.8));
+        let mut buf = [(0.0f32, 0.0f32); 2];
+        src.fill_buffer(&mut buf);
+        assert_eq!(buf[0], (0.5, 0.5));
+        assert_eq!(buf[1], (0.8, 0.8));
     }
 
     #[test]
     fn stereo_reads_interleaved_pairs() {
         let mut src = FileSource::from_samples(vec![0.1, 0.2, 0.3, 0.4], 2);
-        assert_eq!(src.next_sample(), (0.1, 0.2));
-        assert_eq!(src.next_sample(), (0.3, 0.4));
+        let mut buf = [(0.0f32, 0.0f32); 2];
+        src.fill_buffer(&mut buf);
+        assert_eq!(buf[0], (0.1, 0.2));
+        assert_eq!(buf[1], (0.3, 0.4));
     }
 
     #[test]
     fn finishes_when_exhausted() {
         let mut src = FileSource::from_samples(vec![0.5], 1);
-        src.next_sample();
+        let mut buf = [(0.0f32, 0.0f32); 1];
+        src.fill_buffer(&mut buf);
         assert!(src.is_finished());
     }
 
     #[test]
     fn looping_wraps_and_never_finishes() {
         let mut src = FileSource::from_samples(vec![0.1, 0.2], 1).looping();
-        src.next_sample();
-        src.next_sample();
-        let (l, _) = src.next_sample();
+        let mut buf = [(0.0f32, 0.0f32); 1];
+        src.fill_buffer(&mut buf);
+        src.fill_buffer(&mut buf);
+        src.fill_buffer(&mut buf);
+        let (l, _) = buf[0];
         assert!((l - 0.1).abs() < 0.001);
         assert!(!src.is_finished());
     }
