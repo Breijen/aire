@@ -4,6 +4,10 @@ use rubato::{Resampler, Fft, FixedSync, Indexing};
 use rubato::audioadapter_buffers::direct::InterleavedSlice;
 use crate::source::Source;
 
+/// Loads and plays audio from a WAV file. Supports 16-bit and 32-bit integer
+/// PCM (Pulse-Code Modulation, the standard uncompressed audio format) and
+/// 32-bit float. Mono files are duplicated to both channels. If the file sample
+/// rate differs from the device rate, the audio is resampled on load.
 pub struct FileSource {
     samples: Vec<f32>,
     current_pos: usize,
@@ -12,6 +16,7 @@ pub struct FileSource {
 }
 
 impl FileSource {
+    /// Loads a WAV file and prepares it for playback at the given device sample rate.
     pub fn new(path: impl AsRef<Path>, device_rate: u32) -> Result<Self, Box<dyn std::error::Error>> {
         let mut reader = hound::WavReader::open(path)?;
         let spec = reader.spec();
@@ -42,6 +47,8 @@ impl FileSource {
         Ok(Self { samples, current_pos: 0, channels, looping: false })
     }
 
+    /// Enables looping. The source restarts from the beginning when it reaches
+    /// the end and will never report as finished.
     pub fn looping(mut self) -> Self {
         self.looping = true;
         self

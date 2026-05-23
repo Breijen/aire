@@ -1,6 +1,9 @@
 use crate::utils::{convert_db, milliseconds_to_samples};
 use crate::dsp::effect::Effect;
 
+/// An ADSR (Attack, Decay, Sustain, Release) amplitude envelope effect.
+/// Shapes the volume of a sound over time. All time values are in milliseconds,
+/// sustain amplitude is in decibels.
 pub struct Adsr {
     attack: u32,
     decay: u32,
@@ -20,6 +23,14 @@ enum AdsrStage {
 }
 
 impl Adsr {
+    /// Creates a new ADSR envelope.
+    ///
+    /// - `device_rate`: sample rate from the engine
+    /// - `attack`: rise time in milliseconds
+    /// - `decay`: fall time from peak to sustain level in milliseconds
+    /// - `sustain_time`: time held at sustain level in milliseconds
+    /// - `release`: fade-out time in milliseconds
+    /// - `sustain_amp`: sustain amplitude in decibels
     pub fn new(device_rate: u32, attack: u32, decay: u32, sustain_time: u32, release: u32, sustain_amp: f32) -> Self {
         Adsr {
             attack: milliseconds_to_samples(attack, device_rate),
