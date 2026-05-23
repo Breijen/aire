@@ -117,6 +117,13 @@ impl Source for Sound {
             effect.process(buffer);
         }
 
+        let source_done = self.source.is_finished();
+        let effects_done = !self.effects.is_empty() && self.effects.iter().any(|e| e.is_finished());
+        if (source_done || effects_done) && matches!(self.state, State::Playing) {
+            self.volume_target = 0.0;
+            self.state = State::FadingToStop;
+        }
+
         for frame in buffer.iter_mut() {
             self.volume += (self.volume_target - self.volume) * self.smooth_coeff;
             self.pan += (self.pan_target - self.pan) * self.smooth_coeff;
@@ -148,8 +155,6 @@ impl Source for Sound {
 
     fn is_finished(&self) -> bool {
         matches!(self.state, State::Stopped)
-            || (self.source.is_finished()
-                && (self.effects.is_empty() || self.effects.iter().any(|e| e.is_finished())))
     }
 }
 
@@ -224,7 +229,8 @@ mod tests {
     #[test]
     fn finished_when_source_exhausted() {
         let mut s = Sound::new(MockSource::finite(10), 0.0, 0.5, 44100);
-        tick(&mut s, 10);
+        tick(&mut s, 10);    // source exhausts, triggers FadingToStop
+        tick(&mut s, 5000);  // wait for fade to complete
         assert!(s.is_finished());
     }
 }

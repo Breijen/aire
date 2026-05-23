@@ -1,50 +1,29 @@
-use aire::{Engine, Sound, Source};
-use std::f32::consts::TAU;
+use aire::{Engine, Oscillator, Sound, Waveform};
 use std::thread;
 use std::time::Duration;
 
-struct Sine {
-    frequency: f32,
-    sample_rate: f32,
-    phase: f32,
-    duration_samples: usize,
-    elapsed: usize,
-}
-
-impl Sine {
-    fn new(frequency: f32, sample_rate: f32, duration_secs: f32) -> Self {
-        Self {
-            frequency,
-            sample_rate,
-            phase: 0.0,
-            duration_samples: (sample_rate * duration_secs) as usize,
-            elapsed: 0,
-        }
-    }
-}
-
-impl Source for Sine {
-    fn fill_buffer(&mut self, buffer: &mut [(f32, f32)]) {
-        for frame in buffer.iter_mut() {
-            let sample = (self.phase * TAU).sin() * 0.3;
-            self.phase = (self.phase + self.frequency / self.sample_rate).fract();
-            self.elapsed += 1;
-            *frame = (sample, sample);
-        }
-    }
-
-    fn is_finished(&self) -> bool {
-        self.elapsed >= self.duration_samples
-    }
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let engine = Engine::new()?;
+    let rate = engine.sample_rate();
 
-    let sine = Sine::new(440.0, engine.sample_rate() as f32, 2.0);
-    let _handle = engine.add_sound(Sound::new(sine, 0.0, 0.5, engine.sample_rate()))?;
+    let sine = Oscillator::new(Waveform::Sine, 440.0, rate)
+        .amplitude(-6.0)
+        .duration(1500);
+    engine.add_sound(Sound::new(sine, -6.0, 0.5, rate))?;
+    thread::sleep(Duration::from_millis(2000));
 
-    thread::sleep(Duration::from_secs(3));
+    let saw = Oscillator::new(Waveform::Saw, 220.0, rate)
+        .amplitude(-22.0)
+        .duration(1500);
+    engine.add_sound(Sound::new(saw, -6.0, 0.5, rate))?;
+    thread::sleep(Duration::from_millis(2000));
+
+    let pulse = Oscillator::new(Waveform::Pulse, 330.0, rate)
+        .amplitude(-22.0)
+        .pulse_width(0.02)
+        .duration(1500);
+    engine.add_sound(Sound::new(pulse, -6.0, 0.5, rate))?;
+    thread::sleep(Duration::from_millis(2000));
 
     Ok(())
 }

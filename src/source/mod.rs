@@ -1,4 +1,5 @@
 pub mod file;
+pub mod oscillator;
 
 /// A source of audio samples. Can be a file, a synthesized signal, or anything
 /// that produces stereo output.
