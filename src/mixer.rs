@@ -29,6 +29,11 @@ impl Mixer {
                     s.resume();
                 }
             }
+            Command::Stop(id) => {
+                if let Some((_, s)) = self.sources.iter_mut().find(|(sid, _)| *sid == id) {
+                    s.stop();
+                }
+            }
         }
     }
 

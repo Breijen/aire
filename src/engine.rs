@@ -13,6 +13,7 @@ pub(crate) enum Command {
     AddSound(SoundId, Box<Sound>),
     Pause(SoundId),
     Resume(SoundId),
+    Stop(SoundId)
 }
 
 pub struct Engine {
