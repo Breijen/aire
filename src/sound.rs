@@ -8,6 +8,7 @@ pub struct Sound {
     volume: f32,
     pan: f32,
     effects: Vec<Box<dyn Effect>>,
+    paused: bool,
 }
 
 impl Sound {
@@ -17,8 +18,13 @@ impl Sound {
             volume: convert_db(volume_db),
             pan: pan.clamp(0.0, 1.0),
             effects: Vec::new(),
+            paused: false,
         }
     }
+
+    pub fn pause(&mut self) { self.paused = true; }
+    pub fn resume(&mut self) { self.paused = false; }
+    pub fn is_paused(&self) -> bool { self.paused }
 
     pub fn add_effect(&mut self, effect: impl Effect + 'static) -> &mut Self {
         self.effects.push(Box::new(effect));
@@ -34,10 +40,15 @@ impl Sound {
         self.pan = pan.clamp(0.0, 1.0);
         self
     }
+
 }
 
 impl Source for Sound {
     fn next_sample(&mut self) -> (f32, f32) {
+        if self.paused {
+            return (0.0, 0.0);
+        }
+
         let mut sample = self.source.next_sample();
 
         for effect in &mut self.effects {
