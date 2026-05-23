@@ -35,6 +35,7 @@ impl Engine {
 
         let config = device.default_output_config()?;
         let sample_rate = config.sample_rate();
+        let channels = config.channels() as usize;
 
         let (tx, rx) = bounded::<Command>(256);
         let mut mixer = Mixer::new(0.0);
@@ -45,7 +46,7 @@ impl Engine {
                 while let Ok(cmd) = rx.try_recv() {
                     mixer.apply(cmd);
                 }
-                for frame in data.chunks_mut(2) {
+                for frame in data.chunks_mut(channels) {
                     let (left, right) = mixer.next_sample();
                     if let Some(l) = frame.get_mut(0) { *l = left; }
                     if let Some(r) = frame.get_mut(1) { *r = right; }

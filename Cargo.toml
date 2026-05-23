@@ -11,3 +11,6 @@ rubato = "3.0.0"
 
 [[example]]
 name = "sine"
+
+[[example]]
+name = "controls"
