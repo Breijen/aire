@@ -14,7 +14,9 @@ pub(crate) enum Command {
     AddSound(SoundId, Box<Sound>),
     Pause(SoundId),
     Resume(SoundId),
-    Stop(SoundId)
+    Stop(SoundId),
+    SetVolume(SoundId, f32),
+    SetPan(SoundId, f32),
 }
 
 pub struct Engine {
