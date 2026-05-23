@@ -3,7 +3,7 @@ use crate::source::Source;
 use crate::sound::Sound;
 use crate::utils;
 
-pub struct Mixer {
+pub(crate) struct Mixer {
     sources: Vec<(SoundId, Box<Sound>)>,
     volume: f32,
 }
