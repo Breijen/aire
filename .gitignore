@@ -1,0 +1,5 @@
+/target
+/.idea
+Cargo.lock
+examples/wav.rs
+examples/*.wav

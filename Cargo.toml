@@ -1,0 +1,22 @@
+[package]
+name = "aire"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "A real-time audio engine for games and interactive applications."
+repository = "https://github.com/Breijen/aire"
+readme = "README.md"
+keywords = ["audio", "game", "sound", "engine", "music"]
+categories = ["multimedia::audio", "game-engines"]
+
+[dependencies]
+cpal = "0.17.3"
+crossbeam-channel = "0.5.15"
+hound = "3.5.1"
+rubato = "3.0.0"
+
+[[example]]
+name = "sine"
+
+[[example]]
+name = "controls"

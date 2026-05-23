@@ -1,4 +1,4 @@
-use aire::{Engine, Source};
+use aire::{Engine, Sound, Source};
 use std::f32::consts::TAU;
 use std::thread;
 use std::time::Duration;
@@ -24,11 +24,11 @@ impl Sine {
 }
 
 impl Source for Sine {
-    fn next_sample(&mut self) -> f32 {
+    fn next_sample(&mut self) -> (f32, f32) {
         let sample = (self.phase * TAU).sin() * 0.3;
         self.phase = (self.phase + self.frequency / self.sample_rate).fract();
         self.elapsed += 1;
-        sample
+        (sample, sample)
     }
 
     fn is_finished(&self) -> bool {
@@ -39,7 +39,8 @@ impl Source for Sine {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let engine = Engine::new()?;
 
-    engine.add_source(Sine::new(440.0, engine.sample_rate() as f32, 2.0));
+    let sine = Sine::new(440.0, engine.sample_rate() as f32, 2.0);
+    let _handle = engine.add_sound(Sound::new(sine, 0.0, 0.5, engine.sample_rate()))?;
 
     thread::sleep(Duration::from_secs(3));
 
