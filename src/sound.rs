@@ -13,6 +13,10 @@ enum State {
     Stopped,
 }
 
+/// A playable sound with volume, pan, and an optional effect chain.
+///
+/// Wraps a [`Source`] and applies volume, stereo pan, and any attached
+/// [`Effect`]s. Volume and pan changes are smoothed to avoid audio clicks.
 pub struct Sound {
     source: Box<dyn Source>,
     volume: f32,
@@ -26,6 +30,11 @@ pub struct Sound {
 }
 
 impl Sound {
+    /// Creates a new sound.
+    ///
+    /// `volume_db` is the initial volume in decibels (0.0 is unity gain). `pan`
+    /// is stereo position from `0.0` (full left) to `1.0` (full right), with
+    /// `0.5` as center. `sample_rate` should match the device rate.
     pub fn new(source: impl Source + 'static, volume_db: f32, pan: f32, sample_rate: u32) -> Self {
         let volume = convert_db(volume_db);
         let pan = pan.clamp(0.0, 1.0);
@@ -43,6 +52,7 @@ impl Sound {
         }
     }
 
+    /// Pauses playback.
     pub fn pause(&mut self) {
         if matches!(self.state, State::Playing) {
             self.pause_volume = self.volume_target;
@@ -51,6 +61,7 @@ impl Sound {
         }
     }
 
+    /// Resumes playback.
     pub fn resume(&mut self) {
         match self.state {
             State::Paused | State::FadingToPause => {
@@ -61,6 +72,7 @@ impl Sound {
         }
     }
 
+    /// Stops playback and removes the sound from the mixer.
     pub fn stop(&mut self) {
         if !matches!(self.state, State::Stopped | State::FadingToStop) {
             self.volume_target = 0.0;
@@ -68,20 +80,24 @@ impl Sound {
         }
     }
 
+    /// Returns `true` if the sound is currently paused.
     pub fn is_paused(&self) -> bool {
         matches!(self.state, State::Paused | State::FadingToPause)
     }
 
+    /// Adds an effect to the processing chain.
     pub fn add_effect(&mut self, effect: impl Effect + 'static) -> &mut Self {
         self.effects.push(Box::new(effect));
         self
     }
 
+    /// Sets the volume in decibels.
     pub fn set_volume(&mut self, volume_db: f32) -> &mut Self {
         self.volume_target = convert_db(volume_db);
         self
     }
 
+    /// Sets the pan from `0.0` (full left) to `1.0` (full right).
     pub fn set_pan(&mut self, pan: f32) -> &mut Self {
         self.pan_target = pan.clamp(0.0, 1.0);
         self

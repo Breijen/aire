@@ -19,6 +19,9 @@ pub(crate) enum Command {
     SetPan(SoundId, f32),
 }
 
+/// The audio engine. Opens the default output device and drives the mixer
+/// on a real-time audio thread. All communication with the audio thread
+/// is lock-free and safe to call from any thread.
 pub struct Engine {
     tx: Sender<Command>,
     next_id: AtomicU64,
@@ -27,6 +30,7 @@ pub struct Engine {
 }
 
 impl Engine {
+    /// Opens the default output device and starts the audio stream.
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let host = cpal::default_host();
         let device = host
@@ -66,6 +70,8 @@ impl Engine {
         })
     }
 
+    /// Submits a sound for playback and returns a handle for controlling it.
+    /// Returns [`AireError::CommandBufferFull`] if the command queue is full.
     pub fn add_sound(&self, sound: Sound) -> Result<SoundHandle, AireError> {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         self.tx.try_send(Command::AddSound(id, Box::new(sound)))
@@ -73,6 +79,7 @@ impl Engine {
         Ok(SoundHandle::new(id, self.tx.clone()))
     }
 
+    /// Returns the device sample rate in Hz.
     pub fn sample_rate(&self) -> u32 {
         self.sample_rate
     }
