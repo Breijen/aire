@@ -1,4 +1,5 @@
 use crossbeam_channel::Sender;
+use crate::error::AireError;
 use crate::engine::{Command, SoundId};
 
 pub struct SoundHandle {
@@ -11,18 +12,18 @@ impl SoundHandle {
         Self { id, tx }
     }
 
-    pub fn pause(&self) {
+    pub fn pause(&self) -> Result<(), AireError> {
         self.tx.try_send(Command::Pause(self.id))
-            .unwrap_or_else(|_| panic!("command buffer full"));
+            .map_err(|_| AireError::CommandBufferFull)
     }
 
-    pub fn resume(&self) {
+    pub fn resume(&self) -> Result<(), AireError> {
         self.tx.try_send(Command::Resume(self.id))
-            .unwrap_or_else(|_| panic!("command buffer full"));
+            .map_err(|_| AireError::CommandBufferFull)
     }
 
-    pub fn stop(&self) {
+    pub fn stop(&self) -> Result<(), AireError> {
         self.tx.try_send(Command::Stop(self.id))
-            .unwrap_or_else(|_| panic!("command buffer full"));
+            .map_err(|_| AireError::CommandBufferFull)
     }
 }
