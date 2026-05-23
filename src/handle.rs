@@ -20,4 +20,9 @@ impl SoundHandle {
         self.tx.try_send(Command::Resume(self.id))
             .unwrap_or_else(|_| panic!("command buffer full"));
     }
+
+    pub fn stop(&self) {
+        self.tx.try_send(Command::Stop(self.id))
+            .unwrap_or_else(|_| panic!("command buffer full"));
+    }
 }
