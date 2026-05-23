@@ -131,3 +131,72 @@ impl Source for Sound {
                 && (self.effects.is_empty() || self.effects.iter().any(|e| e.is_finished())))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct MockSource { remaining: usize }
+
+    impl MockSource {
+        fn finite(n: usize) -> Self { Self { remaining: n } }
+        fn endless() -> Self { Self { remaining: usize::MAX } }
+    }
+
+    impl Source for MockSource {
+        fn next_sample(&mut self) -> (f32, f32) {
+            self.remaining = self.remaining.saturating_sub(1);
+            (1.0, 1.0)
+        }
+        fn is_finished(&self) -> bool { self.remaining == 0 }
+    }
+
+    unsafe impl Send for MockSource {}
+
+    fn tick(sound: &mut Sound, n: usize) {
+        for _ in 0..n { sound.next_sample(); }
+    }
+
+    #[test]
+    fn pause_fades_to_paused() {
+        let mut s = Sound::new(MockSource::endless(), 0.0, 0.5, 44100);
+        s.pause();
+        assert!(matches!(s.state, State::FadingToPause));
+        tick(&mut s, 5000);
+        assert!(matches!(s.state, State::Paused));
+    }
+
+    #[test]
+    fn resume_mid_fade_restores_volume() {
+        let mut s = Sound::new(MockSource::endless(), 0.0, 0.5, 44100);
+        let vol = s.volume_target;
+        s.pause();
+        tick(&mut s, 100);
+        s.resume();
+        assert!(matches!(s.state, State::Playing));
+        assert!((s.volume_target - vol).abs() < 0.001);
+    }
+
+    #[test]
+    fn stop_fades_to_stopped() {
+        let mut s = Sound::new(MockSource::endless(), 0.0, 0.5, 44100);
+        s.stop();
+        tick(&mut s, 5000);
+        assert!(s.is_finished());
+    }
+
+    #[test]
+    fn double_stop_does_not_panic() {
+        let mut s = Sound::new(MockSource::endless(), 0.0, 0.5, 44100);
+        s.stop();
+        tick(&mut s, 5000);
+        s.stop();
+    }
+
+    #[test]
+    fn finished_when_source_exhausted() {
+        let mut s = Sound::new(MockSource::finite(10), 0.0, 0.5, 44100);
+        tick(&mut s, 10);
+        assert!(s.is_finished());
+    }
+}

@@ -47,6 +47,11 @@ impl FileSource {
         self
     }
 
+    #[cfg(test)]
+    fn from_samples(samples: Vec<f32>, channels: usize) -> Self {
+        Self { samples, current_pos: 0, channels, looping: false }
+    }
+
     fn resample(raw: Vec<f32>, device_rate: u32, file_rate: u32, channels: usize) -> Vec<f32> {
         let frames = raw.len() / channels;
         let input_f64: Vec<f64> = raw.iter().map(|s| *s as f64).collect();
@@ -120,5 +125,41 @@ impl Source for FileSource {
 
     fn is_finished(&self) -> bool {
         !self.looping && self.current_pos >= self.samples.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mono_duplicates_to_both_channels() {
+        let mut src = FileSource::from_samples(vec![0.5, 0.8], 1);
+        assert_eq!(src.next_sample(), (0.5, 0.5));
+        assert_eq!(src.next_sample(), (0.8, 0.8));
+    }
+
+    #[test]
+    fn stereo_reads_interleaved_pairs() {
+        let mut src = FileSource::from_samples(vec![0.1, 0.2, 0.3, 0.4], 2);
+        assert_eq!(src.next_sample(), (0.1, 0.2));
+        assert_eq!(src.next_sample(), (0.3, 0.4));
+    }
+
+    #[test]
+    fn finishes_when_exhausted() {
+        let mut src = FileSource::from_samples(vec![0.5], 1);
+        src.next_sample();
+        assert!(src.is_finished());
+    }
+
+    #[test]
+    fn looping_wraps_and_never_finishes() {
+        let mut src = FileSource::from_samples(vec![0.1, 0.2], 1).looping();
+        src.next_sample();
+        src.next_sample();
+        let (l, _) = src.next_sample();
+        assert!((l - 0.1).abs() < 0.001);
+        assert!(!src.is_finished());
     }
 }
