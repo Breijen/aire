@@ -2,7 +2,6 @@ use std::path::Path;
 use hound::SampleFormat;
 use rubato::{Resampler, Fft, FixedSync, Indexing};
 use rubato::audioadapter_buffers::direct::InterleavedSlice;
-use crate::utils;
 use crate::source::Source;
 
 pub struct FileSource {
@@ -12,7 +11,7 @@ pub struct FileSource {
 }
 
 impl FileSource {
-    pub fn new(path: impl AsRef<Path>, device_rate: u32, volume: f32) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(path: impl AsRef<Path>, device_rate: u32) -> Result<Self, Box<dyn std::error::Error>> {
         let mut reader = hound::WavReader::open(path)?;
         let spec = reader.spec();
         let file_rate = spec.sample_rate;
@@ -33,15 +32,11 @@ impl FileSource {
                 .collect::<Result<_, hound::Error>>()?,
         };
 
-        let mut samples = if file_rate != device_rate {
+        let samples = if file_rate != device_rate {
             Self::resample(raw, device_rate, file_rate, channels)
         } else {
             raw
         };
-
-        let db = utils::convert_db(volume);
-
-        for sample in samples.iter_mut() { *sample *= db; }
 
         Ok(Self { samples, current_pos: 0, channels })
     }
