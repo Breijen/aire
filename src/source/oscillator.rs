@@ -61,6 +61,18 @@ impl Oscillator {
     }
 }
 
+fn poly_blamp(t: f32, dt: f32) -> f32 {
+    if t < dt {
+        let t = t / dt;
+        dt * (0.5 * t * t - t + 0.5)
+    } else if t > 1.0 - dt {
+        let t = (t - 1.0) / dt;
+        dt * (0.5 * t * t + t + 0.5)
+    } else {
+        0.0
+    }
+}
+
 fn poly_blep(t: f32, dt: f32) -> f32 {
     if t < dt {
         let t = t / dt;
@@ -94,7 +106,13 @@ impl Source for Oscillator {
                     let naive = 1.0 - 2.0 * t;
                     naive + poly_blep(t, dt)
                 }
-                Waveform::Triangle => 1.0 - 4.0 * (t - 0.25).abs(),
+                Waveform::Triangle => {
+                    let t_shifted = (t + 0.75).fract();
+                    let naive = 4.0 * (t_shifted - 0.5).abs() - 1.0;
+                    naive
+                        - 8.0 * poly_blamp((t - 0.25).rem_euclid(1.0), dt)
+                        + 8.0 * poly_blamp((t - 0.75).rem_euclid(1.0), dt)
+                }
                 Waveform::Square => {
                     let naive = if t < 0.5 { 1.0 } else { -1.0 };
                     naive + poly_blep(t, dt)
