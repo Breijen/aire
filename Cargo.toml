@@ -10,9 +10,11 @@ keywords = ["audio", "game", "sound", "engine", "music"]
 categories = ["multimedia::audio", "game-engines"]
 
 [dependencies]
+claxon = "0.4.3"
 cpal = "0.17.3"
 crossbeam-channel = "0.5.15"
 hound = "3.5.1"
+lewton = "0.10.2"
 rubato = "3.0.0"
 
 [[example]]
