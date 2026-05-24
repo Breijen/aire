@@ -1,5 +1,6 @@
 use std::path::Path;
 use hound::SampleFormat;
+use lewton::inside_ogg::OggStreamReader;
 use rubato::{Resampler, Fft, FixedSync, Indexing};
 use rubato::audioadapter_buffers::direct::InterleavedSlice;
 use crate::AireError;
@@ -29,6 +30,7 @@ impl FileSource {
             "wav"  => Self::load_wav(path.as_ref())?,
             "ogg"  => Self::load_ogg(path.as_ref())?,
             "flac" => Self::load_flac(path.as_ref())?,
+            "mp3"  => Self::load_mp3(path.as_ref())?,
             other  => return Err(AireError::FileExtNotSupported(other.to_string()).into()),
         };
 
@@ -72,8 +74,6 @@ impl FileSource {
     }
 
     fn load_ogg(path: &Path) -> Result<(Vec<f32>, u32, usize), Box<dyn std::error::Error>> {
-        use lewton::inside_ogg::OggStreamReader;
-
         let mut reader = OggStreamReader::new(std::fs::File::open(path)?)?;
         let channels = reader.ident_hdr.audio_channels as usize;
         let sample_rate = reader.ident_hdr.audio_sample_rate;
@@ -103,6 +103,29 @@ impl FileSource {
             raw.push(sample? as f32 / max_val);
         }
 
+        Ok((raw, sample_rate, channels))
+    }
+
+    fn load_mp3(path: &Path) -> Result<(Vec<f32>, u32, usize), Box<dyn std::error::Error>> {
+        let data = std::fs::read(path)?;
+        let mut decoder = nanomp3::Decoder::new();
+        let mut pcm = vec![0.0f32; nanomp3::MAX_SAMPLES_PER_FRAME];
+        let mut raw: Vec<f32> = Vec::new();
+        let mut offset = 0;
+        let mut meta: Option<(u32, usize)> = None;
+
+        while offset < data.len() {
+            let (frame_bytes, info_opt) = decoder.decode(&data[offset..], &mut pcm);
+            if frame_bytes == 0 { break; }
+            offset += frame_bytes;
+            if let Some(info) = info_opt {
+                let channels = info.channels.num() as usize;
+                meta = Some((info.sample_rate, channels));
+                raw.extend_from_slice(&pcm[..info.samples_produced * channels]);
+            }
+        }
+
+        let (sample_rate, channels) = meta.ok_or("failed to decode MP3: no audio frames found")?;
         Ok((raw, sample_rate, channels))
     }
 
