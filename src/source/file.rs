@@ -99,21 +99,8 @@ impl FileSource {
         let max_val = (1_i64 << (info.bits_per_sample - 1)) as f32;
 
         let mut raw: Vec<f32> = Vec::new();
-        let mut blocks = reader.blocks();
-        let mut buffer = Vec::new();
-
-        loop {
-            match blocks.read_next_or_eof(buffer)? {
-                Some(block) => {
-                    for i in 0..block.len() {
-                        for ch in 0..channels as u32 {
-                            raw.push(block.sample(ch, i) as f32 / max_val);
-                        }
-                    }
-                    buffer = block.into_buffer();
-                }
-                None => break,
-            }
+        for sample in reader.samples() {
+            raw.push(sample? as f32 / max_val);
         }
 
         Ok((raw, sample_rate, channels))
