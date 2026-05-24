@@ -2,11 +2,11 @@ use std::path::Path;
 use hound::SampleFormat;
 use rubato::{Resampler, Fft, FixedSync, Indexing};
 use rubato::audioadapter_buffers::direct::InterleavedSlice;
+use crate::AireError;
 use crate::source::Source;
 
-/// Loads and plays audio from a WAV file. Supports 16-bit and 32-bit integer
-/// PCM (Pulse-Code Modulation, the standard uncompressed audio format) and
-/// 32-bit float. Mono files are duplicated to both channels. If the file sample
+/// Loads and plays audio from a file. Supports WAV, OGG, and FLAC.
+/// Mono files are duplicated to both channels. If the file sample
 /// rate differs from the device rate, the audio is resampled on load.
 pub struct FileSource {
     samples: Vec<f32>,
@@ -16,11 +16,41 @@ pub struct FileSource {
 }
 
 impl FileSource {
-    /// Loads a WAV file and prepares it for playback at the given device sample rate.
+    /// Loads an audio file and prepares it for playback at the given device sample rate.
+    /// Supports `.wav`, `.ogg`, and `.flac`.
     pub fn new(path: impl AsRef<Path>, device_rate: u32) -> Result<Self, Box<dyn std::error::Error>> {
+        let ext = path.as_ref()
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        let (raw, file_rate, channels) = match ext.as_str() {
+            "wav"  => Self::load_wav(path.as_ref())?,
+            "ogg"  => Self::load_ogg(path.as_ref())?,
+            "flac" => Self::load_flac(path.as_ref())?,
+            other  => return Err(AireError::FileExtNotSupported(other.to_string()).into()),
+        };
+
+        let samples = if file_rate != device_rate {
+            Self::resample(raw, device_rate, file_rate, channels)
+        } else {
+            raw
+        };
+
+        Ok(Self { samples, current_pos: 0, channels, looping: false })
+    }
+
+    /// Enables looping. The source restarts from the beginning when it reaches
+    /// the end and will never report as finished.
+    pub fn looping(mut self) -> Self {
+        self.looping = true;
+        self
+    }
+
+    fn load_wav(path: &Path) -> Result<(Vec<f32>, u32, usize), Box<dyn std::error::Error>> {
         let mut reader = hound::WavReader::open(path)?;
         let spec = reader.spec();
-        let file_rate = spec.sample_rate;
         let channels = spec.channels as usize;
 
         let raw: Vec<f32> = match spec.sample_format {
@@ -38,20 +68,55 @@ impl FileSource {
                 .collect::<Result<_, hound::Error>>()?,
         };
 
-        let samples = if file_rate != device_rate {
-            Self::resample(raw, device_rate, file_rate, channels)
-        } else {
-            raw
-        };
-
-        Ok(Self { samples, current_pos: 0, channels, looping: false })
+        Ok((raw, spec.sample_rate, channels))
     }
 
-    /// Enables looping. The source restarts from the beginning when it reaches
-    /// the end and will never report as finished.
-    pub fn looping(mut self) -> Self {
-        self.looping = true;
-        self
+    fn load_ogg(path: &Path) -> Result<(Vec<f32>, u32, usize), Box<dyn std::error::Error>> {
+        use lewton::inside_ogg::OggStreamReader;
+
+        let mut reader = OggStreamReader::new(std::fs::File::open(path)?)?;
+        let channels = reader.ident_hdr.audio_channels as usize;
+        let sample_rate = reader.ident_hdr.audio_sample_rate;
+
+        let mut raw: Vec<f32> = Vec::new();
+        while let Some(packet) = reader.read_dec_packet_generic::<Vec<Vec<f32>>>()? {
+            let frames = packet[0].len();
+            for i in 0..frames {
+                for ch in &packet {
+                    raw.push(ch[i]);
+                }
+            }
+        }
+
+        Ok((raw, sample_rate, channels))
+    }
+
+    fn load_flac(path: &Path) -> Result<(Vec<f32>, u32, usize), Box<dyn std::error::Error>> {
+        let mut reader = claxon::FlacReader::open(path)?;
+        let info = reader.streaminfo();
+        let channels = info.channels as usize;
+        let sample_rate = info.sample_rate;
+        let max_val = (1_i64 << (info.bits_per_sample - 1)) as f32;
+
+        let mut raw: Vec<f32> = Vec::new();
+        let mut blocks = reader.blocks();
+        let mut buffer = Vec::new();
+
+        loop {
+            match blocks.read_next_or_eof(buffer)? {
+                Some(block) => {
+                    for i in 0..block.len() {
+                        for ch in 0..channels as u32 {
+                            raw.push(block.sample(ch, i) as f32 / max_val);
+                        }
+                    }
+                    buffer = block.into_buffer();
+                }
+                None => break,
+            }
+        }
+
+        Ok((raw, sample_rate, channels))
     }
 
     #[cfg(test)]
