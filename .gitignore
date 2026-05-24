@@ -3,3 +3,5 @@
 Cargo.lock
 examples/wav.rs
 examples/*.wav
+examples/example.ogg
+examples/test.ogg
