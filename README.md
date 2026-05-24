@@ -8,7 +8,8 @@ AIRE is an audio engine for Rust built for games and interactive applications. I
 
 ## Features
 
-- Play WAV files (16-bit, 32-bit PCM and 32-bit float)
+- Play WAV, OGG, and FLAC files
+- Synthesize audio with a six-waveform oscillator (sine, saw, triangle, square, pulse)
 - Loop sounds
 - Control volume and pan at runtime
 - Pause, resume, and stop sounds
@@ -21,7 +22,7 @@ Add AIRE to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-aire = "0.1"
+aire = "0.2"
 ```
 
 ### Play a sound
@@ -36,6 +37,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _handle = engine.add_sound(Sound::new(source, 0.0, 0.5, engine.sample_rate()))?;
 
     thread::sleep(Duration::from_secs(5));
+    Ok(())
+}
+```
+
+### Synthesize a tone
+
+```rust
+use aire::{Engine, Oscillator, Sound, Waveform};
+use std::{thread, time::Duration};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let engine = Engine::new()?;
+    let rate = engine.sample_rate();
+
+    let osc = Oscillator::new(Waveform::Saw, 220.0, rate)
+        .amplitude(-6.0)
+        .duration(2000);
+    let _handle = engine.add_sound(Sound::new(osc, 0.0, 0.5, rate))?;
+
+    thread::sleep(Duration::from_secs(3));
     Ok(())
 }
 ```
@@ -71,17 +92,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Roadmap
 
-- [ ] More audio formats (OGG, MP3, FLAC)
-- [ ] Pitch control
-- [ ] Mixer buses and groups
-- [ ] Audio effects and filters (reverb, EQ, compression)
-- [ ] Tweening and parameter automation
-- [ ] Streaming for large files
-- [ ] Voice management
-- [ ] Asset management and sound banks
-- [ ] Hot reloading
-- [ ] Spatial audio
-- [ ] Raytraced audio
+Planned features and future direction are tracked on the [project board](https://github.com/users/Breijen/projects/3).
 
 ## Contributing
 

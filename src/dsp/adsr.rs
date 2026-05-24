@@ -44,8 +44,8 @@ impl Adsr {
     }
 }
 
-impl Effect for Adsr {
-    fn process(&mut self, (l, r): (f32, f32)) -> (f32, f32) {
+impl Adsr {
+    fn process_sample(&mut self, (l, r): (f32, f32)) -> (f32, f32) {
         match self.stage {
             AdsrStage::Attack => {
                 let multiplier = self.current_sample as f32 / self.attack as f32;
@@ -84,6 +84,14 @@ impl Effect for Adsr {
                 (l * multiplier, r * multiplier)
             }
             AdsrStage::Finished => (0.0, 0.0),
+        }
+    }
+}
+
+impl Effect for Adsr {
+    fn process(&mut self, buffer: &mut [(f32, f32)]) {
+        for frame in buffer.iter_mut() {
+            *frame = self.process_sample(*frame);
         }
     }
 

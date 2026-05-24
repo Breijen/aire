@@ -105,46 +105,56 @@ impl Sound {
 }
 
 impl Source for Sound {
-    fn next_sample(&mut self) -> (f32, f32) {
+    fn fill_buffer(&mut self, buffer: &mut [(f32, f32)]) {
         if matches!(self.state, State::Paused | State::Stopped) {
-            return (0.0, 0.0);
+            buffer.fill((0.0, 0.0));
+            return;
         }
 
-        self.volume += (self.volume_target - self.volume) * self.smooth_coeff;
-        self.pan += (self.pan_target - self.pan) * self.smooth_coeff;
-
-        if self.volume < SILENCE_THRESHOLD {
-            match self.state {
-                State::FadingToPause => {
-                    self.state = State::Paused;
-                    self.volume = 0.0;
-                    return (0.0, 0.0);
-                }
-                State::FadingToStop => {
-                    self.state = State::Stopped;
-                    self.volume = 0.0;
-                    return (0.0, 0.0);
-                }
-                _ => {}
-            }
-        }
-
-        let mut sample = self.source.next_sample();
+        self.source.fill_buffer(buffer);
 
         for effect in &mut self.effects {
-            sample = effect.process(sample);
+            effect.process(buffer);
         }
 
-        let (l, r) = sample;
-        let pan_left = (self.pan * FRAC_PI_2).cos();
-        let pan_right = (self.pan * FRAC_PI_2).sin();
-        (l * self.volume * pan_left, r * self.volume * pan_right)
+        let source_done = self.source.is_finished();
+        let effects_done = !self.effects.is_empty() && self.effects.iter().any(|e| e.is_finished());
+        if (source_done || effects_done) && matches!(self.state, State::Playing) {
+            self.volume_target = 0.0;
+            self.state = State::FadingToStop;
+        }
+
+        for frame in buffer.iter_mut() {
+            self.volume += (self.volume_target - self.volume) * self.smooth_coeff;
+            self.pan += (self.pan_target - self.pan) * self.smooth_coeff;
+
+            if self.volume < SILENCE_THRESHOLD {
+                match self.state {
+                    State::FadingToPause => {
+                        self.state = State::Paused;
+                        self.volume = 0.0;
+                    }
+                    State::FadingToStop => {
+                        self.state = State::Stopped;
+                        self.volume = 0.0;
+                    }
+                    _ => {}
+                }
+            }
+
+            if matches!(self.state, State::Paused | State::Stopped) {
+                *frame = (0.0, 0.0);
+            } else {
+                let (l, r) = *frame;
+                let pan_left = (self.pan * FRAC_PI_2).cos();
+                let pan_right = (self.pan * FRAC_PI_2).sin();
+                *frame = (l * self.volume * pan_left, r * self.volume * pan_right);
+            }
+        }
     }
 
     fn is_finished(&self) -> bool {
         matches!(self.state, State::Stopped)
-            || (self.source.is_finished()
-                && (self.effects.is_empty() || self.effects.iter().any(|e| e.is_finished())))
     }
 }
 
@@ -160,9 +170,15 @@ mod tests {
     }
 
     impl Source for MockSource {
-        fn next_sample(&mut self) -> (f32, f32) {
-            self.remaining = self.remaining.saturating_sub(1);
-            (1.0, 1.0)
+        fn fill_buffer(&mut self, buffer: &mut [(f32, f32)]) {
+            for frame in buffer.iter_mut() {
+                if self.remaining > 0 {
+                    self.remaining = self.remaining.saturating_sub(1);
+                    *frame = (1.0, 1.0);
+                } else {
+                    *frame = (0.0, 0.0);
+                }
+            }
         }
         fn is_finished(&self) -> bool { self.remaining == 0 }
     }
@@ -170,7 +186,8 @@ mod tests {
     unsafe impl Send for MockSource {}
 
     fn tick(sound: &mut Sound, n: usize) {
-        for _ in 0..n { sound.next_sample(); }
+        let mut buf = vec![(0.0f32, 0.0f32); n];
+        sound.fill_buffer(&mut buf);
     }
 
     #[test]
@@ -212,7 +229,8 @@ mod tests {
     #[test]
     fn finished_when_source_exhausted() {
         let mut s = Sound::new(MockSource::finite(10), 0.0, 0.5, 44100);
-        tick(&mut s, 10);
+        tick(&mut s, 10);    // source exhausts, triggers FadingToStop
+        tick(&mut s, 5000);  // wait for fade to complete
         assert!(s.is_finished());
     }
 }
