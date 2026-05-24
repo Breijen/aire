@@ -6,7 +6,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let engine = Engine::new()?;
 
     // drop any WAV file into examples/ and update the path below
-    let source = FileSource::new("./examples/example.wav", engine.sample_rate())?.looping();
+    let source = FileSource::new("./examples/Luz.mp3", engine.sample_rate())?.looping();
     let handle = engine.add_sound(Sound::new(source, 0.0, 0.5, engine.sample_rate()))?;
 
     println!("playing...");
