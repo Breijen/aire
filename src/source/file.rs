@@ -1,24 +1,36 @@
 use std::path::Path;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use hound::SampleFormat;
+use lewton::inside_ogg::OggStreamReader;
+use ringbuf::HeapCons;
+use ringbuf::traits::{Consumer, Observer};
 use rubato::{Resampler, Fft, FixedSync, Indexing};
 use rubato::audioadapter_buffers::direct::InterleavedSlice;
+
 use crate::AireError;
 use crate::source::Source;
+use crate::streaming::decoder::open_stream_decoder;
+use crate::streaming::pool::DecodePool;
 
-/// Loads and plays audio from a file. Supports WAV, OGG, and FLAC.
-/// Mono files are duplicated to both channels. If the file sample
-/// rate differs from the device rate, the audio is resampled on load.
+enum FileSourceInner {
+    Loaded    { samples: Vec<f32>, pos: usize },
+    Streaming { consumer: HeapCons<f32>, finished: Arc<AtomicBool>, looping: Arc<AtomicBool> },
+}
+
+/// Plays audio from a file. Use [`FileSource::load`] for short sounds and
+/// [`FileSource::stream`] for music or long ambience tracks.
 pub struct FileSource {
-    samples: Vec<f32>,
-    current_pos: usize,
+    inner: FileSourceInner,
     channels: usize,
     looping: bool,
 }
 
 impl FileSource {
-    /// Loads an audio file and prepares it for playback at the given device sample rate.
-    /// Supports `.wav`, `.ogg`, and `.flac`.
-    pub fn new(path: impl AsRef<Path>, device_rate: u32) -> Result<Self, Box<dyn std::error::Error>> {
+    /// Decodes the entire file into memory before playback begins.
+    /// Supports `.wav`, `.ogg`, `.flac`, and `.mp3`.
+    pub fn load(path: impl AsRef<Path>, device_rate: u32) -> Result<Self, Box<dyn std::error::Error>> {
         let ext = path.as_ref()
             .extension()
             .and_then(|e| e.to_str())
@@ -29,6 +41,7 @@ impl FileSource {
             "wav"  => Self::load_wav(path.as_ref())?,
             "ogg"  => Self::load_ogg(path.as_ref())?,
             "flac" => Self::load_flac(path.as_ref())?,
+            "mp3"  => Self::load_mp3(path.as_ref())?,
             other  => return Err(AireError::FileExtNotSupported(other.to_string()).into()),
         };
 
@@ -38,13 +51,48 @@ impl FileSource {
             raw
         };
 
-        Ok(Self { samples, current_pos: 0, channels, looping: false })
+        Ok(Self { inner: FileSourceInner::Loaded { samples, pos: 0 }, channels, looping: false })
     }
 
-    /// Enables looping. The source restarts from the beginning when it reaches
-    /// the end and will never report as finished.
+    /// Streams the file through a background decode pool.
+    /// Supports `.wav` and `.ogg`. Chain `.looping()` to loop continuously.
+    ///
+    /// `.flac` and `.mp3` are not supported for streaming; use [`FileSource::load`] instead.
+    ///
+    /// The file and device sample rates must match; resampling on the streaming
+    /// path is not yet supported.
+    pub fn stream(
+        path: impl AsRef<Path>,
+        device_rate: u32,
+        pool: &DecodePool,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let decoder = open_stream_decoder(path.as_ref())
+            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+
+        if decoder.sample_rate() != device_rate {
+            return Err(
+                "streaming does not yet support resampling; \
+                 the file sample rate must match the device rate".into()
+            );
+        }
+
+        let channels = decoder.channels();
+        let looping  = Arc::new(AtomicBool::new(false));
+        let (consumer, finished) = pool.register(decoder, looping.clone());
+
+        Ok(Self {
+            inner: FileSourceInner::Streaming { consumer, finished, looping },
+            channels,
+            looping: false,
+        })
+    }
+
+    /// Enables looping. Works for both loaded and streamed sources.
     pub fn looping(mut self) -> Self {
         self.looping = true;
+        if let FileSourceInner::Streaming { looping, .. } = &self.inner {
+            looping.store(true, Ordering::Relaxed);
+        }
         self
     }
 
@@ -72,8 +120,6 @@ impl FileSource {
     }
 
     fn load_ogg(path: &Path) -> Result<(Vec<f32>, u32, usize), Box<dyn std::error::Error>> {
-        use lewton::inside_ogg::OggStreamReader;
-
         let mut reader = OggStreamReader::new(std::fs::File::open(path)?)?;
         let channels = reader.ident_hdr.audio_channels as usize;
         let sample_rate = reader.ident_hdr.audio_sample_rate;
@@ -82,9 +128,7 @@ impl FileSource {
         while let Some(packet) = reader.read_dec_packet_generic::<Vec<Vec<f32>>>()? {
             let frames = packet[0].len();
             for i in 0..frames {
-                for ch in &packet {
-                    raw.push(ch[i]);
-                }
+                for ch in &packet { raw.push(ch[i]); }
             }
         }
 
@@ -99,16 +143,32 @@ impl FileSource {
         let max_val = (1_i64 << (info.bits_per_sample - 1)) as f32;
 
         let mut raw: Vec<f32> = Vec::new();
-        for sample in reader.samples() {
-            raw.push(sample? as f32 / max_val);
-        }
+        for sample in reader.samples() { raw.push(sample? as f32 / max_val); }
 
         Ok((raw, sample_rate, channels))
     }
 
-    #[cfg(test)]
-    fn from_samples(samples: Vec<f32>, channels: usize) -> Self {
-        Self { samples, current_pos: 0, channels, looping: false }
+    fn load_mp3(path: &Path) -> Result<(Vec<f32>, u32, usize), Box<dyn std::error::Error>> {
+        let data = std::fs::read(path)?;
+        let mut decoder = nanomp3::Decoder::new();
+        let mut pcm = vec![0.0f32; nanomp3::MAX_SAMPLES_PER_FRAME];
+        let mut raw: Vec<f32> = Vec::new();
+        let mut offset = 0;
+        let mut meta: Option<(u32, usize)> = None;
+
+        while offset < data.len() {
+            let (frame_bytes, info_opt) = decoder.decode(&data[offset..], &mut pcm);
+            if frame_bytes == 0 { break; }
+            offset += frame_bytes;
+            if let Some(info) = info_opt {
+                let channels = info.channels.num() as usize;
+                meta = Some((info.sample_rate, channels));
+                raw.extend_from_slice(&pcm[..info.samples_produced * channels]);
+            }
+        }
+
+        let (sample_rate, channels) = meta.ok_or("failed to decode MP3: no audio frames found")?;
+        Ok((raw, sample_rate, channels))
     }
 
     fn resample(raw: Vec<f32>, device_rate: u32, file_rate: u32, channels: usize) -> Vec<f32> {
@@ -128,7 +188,7 @@ impl FileSource {
             FixedSync::Input,
         ).unwrap();
 
-        let input_adapter = InterleavedSlice::new(&input_f64, channels, frames).unwrap();
+        let input_adapter  = InterleavedSlice::new(&input_f64, channels, frames).unwrap();
         let mut output_adapter = InterleavedSlice::new_mut(&mut output_f64, channels, output_frames).unwrap();
 
         let mut indexing = Indexing {
@@ -142,11 +202,9 @@ impl FileSource {
         let mut input_frames_next = resampler.input_frames_next();
 
         while input_frames_left >= input_frames_next {
-            let (frames_read, frames_written) = resampler.process_into_buffer(
-                &input_adapter,
-                &mut output_adapter,
-                Some(&indexing),
-            ).unwrap();
+            let (frames_read, frames_written) = resampler
+                .process_into_buffer(&input_adapter, &mut output_adapter, Some(&indexing))
+                .unwrap();
             indexing.input_offset += frames_read;
             indexing.output_offset += frames_written;
             input_frames_left -= frames_read;
@@ -156,37 +214,58 @@ impl FileSource {
         let total = indexing.output_offset * channels;
         output_f64[..total].iter().map(|s| *s as f32).collect()
     }
+
+    #[cfg(test)]
+    fn from_samples(samples: Vec<f32>, channels: usize) -> Self {
+        Self { inner: FileSourceInner::Loaded { samples, pos: 0 }, channels, looping: false }
+    }
 }
 
 impl Source for FileSource {
     fn fill_buffer(&mut self, buffer: &mut [(f32, f32)]) {
-        for frame in buffer.iter_mut() {
-            if self.current_pos >= self.samples.len() {
-                *frame = (0.0, 0.0);
-                continue;
+        let channels = self.channels;
+        let looping  = self.looping;
+
+        match &mut self.inner {
+            FileSourceInner::Loaded { samples, pos } => {
+                for frame in buffer.iter_mut() {
+                    if *pos >= samples.len() { *frame = (0.0, 0.0); continue; }
+
+                    let sample = if channels == 2 {
+                        let l = samples[*pos]; let r = samples[*pos + 1];
+                        *pos += 2;
+                        (l, r)
+                    } else {
+                        let s = samples[*pos];
+                        *pos += 1;
+                        (s, s)
+                    };
+
+                    if looping && *pos >= samples.len() { *pos = 0; }
+                    *frame = sample;
+                }
             }
-
-            let sample = if self.channels == 2 {
-                let left = self.samples[self.current_pos];
-                let right = self.samples[self.current_pos + 1];
-                self.current_pos += 2;
-                (left, right)
-            } else {
-                let s = self.samples[self.current_pos];
-                self.current_pos += 1;
-                (s, s)
-            };
-
-            if self.looping && self.current_pos >= self.samples.len() {
-                self.current_pos = 0;
+            FileSourceInner::Streaming { consumer, .. } => { 
+                for frame in buffer.iter_mut() {
+                    if consumer.occupied_len() >= channels {
+                        let mut tmp = [0.0f32; 2];
+                        consumer.pop_slice(&mut tmp[..channels]);
+                        *frame = if channels == 2 { (tmp[0], tmp[1]) } else { (tmp[0], tmp[0]) };
+                    } else {
+                        *frame = (0.0, 0.0);
+                    }
+                }
             }
-
-            *frame = sample;
         }
     }
 
     fn is_finished(&self) -> bool {
-        !self.looping && self.current_pos >= self.samples.len()
+        match &self.inner {
+            FileSourceInner::Loaded { samples, pos } => !self.looping && *pos >= samples.len(),
+            FileSourceInner::Streaming { consumer, finished, .. } => {
+                finished.load(Ordering::Relaxed) && consumer.is_empty()
+            }
+        }
     }
 }
 

@@ -5,8 +5,8 @@ use aire::{Engine, FileSource, Sound};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let engine = Engine::new()?;
 
-    // drop any WAV file into examples/ and update the path below
-    let source = FileSource::new("./examples/example.wav", engine.sample_rate())?.looping();
+    // drop any audio file (WAV, OGG, FLAC, MP3) into examples/ and update the path below
+    let source = FileSource::load("./examples/example.ogg", engine.sample_rate())?.looping();
     let handle = engine.add_sound(Sound::new(source, 0.0, 0.5, engine.sample_rate()))?;
 
     println!("playing...");

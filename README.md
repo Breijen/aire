@@ -4,16 +4,18 @@
 
 # AIRE
 
-AIRE is an audio engine for Rust built for games and interactive applications. It lets you load sounds, play them, and control them at runtime.
+AIRE is an audio engine for Rust built for games and interactive applications. It lets you load sounds, stream music, and control everything at runtime.
 
 ## Features
 
-- Play WAV, OGG, and FLAC files
-- Synthesize audio with a six-waveform oscillator (sine, saw, triangle, square, pulse)
+- Play WAV, OGG, FLAC, and MP3 files
+- Stream large files from disk without loading them into memory
+- Synthesize audio with a band-limited oscillator (sine, saw, saw down, triangle, square, pulse)
 - Loop sounds
 - Control volume and pan at runtime
 - Pause, resume, and stop sounds
-- Apply amplitude envelopes (ADSR)
+- Apply ADSR amplitude envelopes with linear or exponential curves
+- Organize sounds into named groups with independent volume and pan
 - Write custom audio sources and effects
 
 ## Usage
@@ -22,7 +24,7 @@ Add AIRE to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-aire = "0.2"
+aire = "0.3"
 ```
 
 ### Play a sound
@@ -33,10 +35,28 @@ use std::{thread, time::Duration};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let engine = Engine::new()?;
-    let source = FileSource::new("sound.wav", engine.sample_rate())?;
+    let source = FileSource::load("sound.wav", engine.sample_rate())?;
     let _handle = engine.add_sound(Sound::new(source, 0.0, 0.5, engine.sample_rate()))?;
 
     thread::sleep(Duration::from_secs(5));
+    Ok(())
+}
+```
+
+### Stream a music track
+
+```rust
+use aire::{DecodePool, Engine, FileSource, Sound};
+use std::{thread, time::Duration};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let engine = Engine::new()?;
+    let pool = DecodePool::new(1);
+
+    let source = FileSource::stream("music.ogg", engine.sample_rate(), &pool)?.looping();
+    let _handle = engine.add_sound(Sound::new(source, 0.0, 0.5, engine.sample_rate()))?;
+
+    thread::sleep(Duration::from_secs(30));
     Ok(())
 }
 ```
@@ -70,7 +90,7 @@ use std::{thread, time::Duration};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let engine = Engine::new()?;
 
-    let source = FileSource::new("music.wav", engine.sample_rate())?.looping();
+    let source = FileSource::load("music.ogg", engine.sample_rate())?.looping();
     let handle = engine.add_sound(Sound::new(source, 0.0, 0.5, engine.sample_rate()))?;
 
     thread::sleep(Duration::from_secs(3));

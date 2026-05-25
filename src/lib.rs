@@ -16,13 +16,16 @@
 //! # Key types
 //!
 //! - [`Engine`] — opens the output device and drives the audio thread
+//! - [`EngineConfig`] — optional configuration (command buffer size, etc.)
 //! - [`Sound`] — wraps a source with volume, pan, and an effect chain
 //! - [`SoundHandle`] — controls a playing sound from any thread
+//! - [`GroupHandle`] — controls volume and pan for a named category of sounds
 //! - [`Source`] — trait for anything that produces audio
 //! - [`Effect`] — trait for DSP effects
-//! - [`FileSource`] — plays WAV files
-//! - [`Oscillator`] — synthesized waveform source with six shapes
-//! - [`Adsr`] — ADSR envelope effect
+//! - [`FileSource`] — loads or streams WAV, OGG, FLAC, and MP3 files
+//! - [`DecodePool`] — background thread pool for streaming decode
+//! - [`Oscillator`] — band-limited synthesized waveform source with six shapes
+//! - [`Adsr`] — ADSR amplitude envelope with linear or exponential curves
 
 mod engine;
 mod error;
@@ -32,13 +35,16 @@ mod source;
 mod utils;
 mod dsp;
 mod sound;
+pub(crate) mod streaming;
 
-pub use engine::Engine;
+pub use streaming::pool::DecodePool;
+
+pub use engine::{Engine, EngineConfig};
 pub use error::AireError;
-pub use handle::SoundHandle;
+pub use handle::{GroupHandle, SoundHandle};
 pub use source::Source;
 pub use source::file::FileSource;
 pub use source::oscillator::{Oscillator, Waveform};
-pub use dsp::adsr::Adsr;
+pub use dsp::adsr::{Adsr, Curve};
 pub use dsp::effect::Effect;
 pub use sound::Sound;
