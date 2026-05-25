@@ -36,7 +36,7 @@ use std::{thread, time::Duration};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let engine = Engine::new()?;
     let source = FileSource::load("sound.wav", engine.sample_rate())?;
-    let _handle = engine.add_sound(Sound::new(source, 0.0, 0.5, engine.sample_rate()))?;
+    let _handle = engine.add_sound(Sound::new(source, engine.sample_rate()))?;
 
     thread::sleep(Duration::from_secs(5));
     Ok(())
@@ -54,7 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pool = DecodePool::new(1);
 
     let source = FileSource::stream("music.ogg", engine.sample_rate(), &pool)?.looping();
-    let _handle = engine.add_sound(Sound::new(source, 0.0, 0.5, engine.sample_rate()))?;
+    let _handle = engine.add_sound(Sound::new(source, engine.sample_rate()))?;
 
     thread::sleep(Duration::from_secs(30));
     Ok(())
@@ -74,7 +74,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let osc = Oscillator::new(Waveform::Saw, 220.0, rate)
         .amplitude(-6.0)
         .duration(2000);
-    let _handle = engine.add_sound(Sound::new(osc, 0.0, 0.5, rate))?;
+    let _handle = engine.add_sound(Sound::new(osc, rate))?;
 
     thread::sleep(Duration::from_secs(3));
     Ok(())
@@ -91,7 +91,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let engine = Engine::new()?;
 
     let source = FileSource::load("music.ogg", engine.sample_rate())?.looping();
-    let handle = engine.add_sound(Sound::new(source, 0.0, 0.5, engine.sample_rate()))?;
+    let handle = engine.add_sound(Sound::new(source, engine.sample_rate()))?;
 
     thread::sleep(Duration::from_secs(3));
     handle.set_volume(-6.0)?;
