@@ -46,7 +46,7 @@ impl FileSource {
         };
 
         let samples = if file_rate != device_rate {
-            Self::resample(raw, device_rate, file_rate, channels)
+            Self::resample(raw, device_rate, file_rate, channels)?
         } else {
             raw
         };
@@ -171,7 +171,7 @@ impl FileSource {
         Ok((raw, sample_rate, channels))
     }
 
-    fn resample(raw: Vec<f32>, device_rate: u32, file_rate: u32, channels: usize) -> Vec<f32> {
+    fn resample(raw: Vec<f32>, device_rate: u32, file_rate: u32, channels: usize) -> Result<Vec<f32>, Box<dyn std::error::Error>> {
         let frames = raw.len() / channels;
         let input_f64: Vec<f64> = raw.iter().map(|s| *s as f64).collect();
 
@@ -186,10 +186,10 @@ impl FileSource {
             channels,
             2,
             FixedSync::Input,
-        ).unwrap();
+        )?;
 
-        let input_adapter  = InterleavedSlice::new(&input_f64, channels, frames).unwrap();
-        let mut output_adapter = InterleavedSlice::new_mut(&mut output_f64, channels, output_frames).unwrap();
+        let input_adapter  = InterleavedSlice::new(&input_f64, channels, frames)?;
+        let mut output_adapter = InterleavedSlice::new_mut(&mut output_f64, channels, output_frames)?;
 
         let mut indexing = Indexing {
             input_offset: 0,
@@ -203,8 +203,7 @@ impl FileSource {
 
         while input_frames_left >= input_frames_next {
             let (frames_read, frames_written) = resampler
-                .process_into_buffer(&input_adapter, &mut output_adapter, Some(&indexing))
-                .unwrap();
+                .process_into_buffer(&input_adapter, &mut output_adapter, Some(&indexing))?;
             indexing.input_offset += frames_read;
             indexing.output_offset += frames_written;
             input_frames_left -= frames_read;
@@ -212,7 +211,7 @@ impl FileSource {
         }
 
         let total = indexing.output_offset * channels;
-        output_f64[..total].iter().map(|s| *s as f32).collect()
+        Ok(output_f64[..total].iter().map(|s| *s as f32).collect())
     }
 
     #[cfg(test)]
