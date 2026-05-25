@@ -32,6 +32,9 @@ mod source;
 mod utils;
 mod dsp;
 mod sound;
+pub(crate) mod streaming;
+
+pub use streaming::pool::DecodePool;
 
 pub use engine::Engine;
 pub use error::AireError;
