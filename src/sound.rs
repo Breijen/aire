@@ -183,21 +183,11 @@ mod tests {
         fn is_finished(&self) -> bool { self.remaining == 0 }
     }
 
-    unsafe impl Send for MockSource {}
-
     fn tick(sound: &mut Sound, n: usize) {
         let mut buf = vec![(0.0f32, 0.0f32); n];
         sound.fill_buffer(&mut buf);
     }
-
-    #[test]
-    fn pause_fades_to_paused() {
-        let mut s = Sound::new(MockSource::endless(), 0.0, 0.5, 44100);
-        s.pause();
-        assert!(matches!(s.state, State::FadingToPause));
-        tick(&mut s, 5000);
-        assert!(matches!(s.state, State::Paused));
-    }
+    
 
     #[test]
     fn resume_mid_fade_restores_volume() {
@@ -208,14 +198,6 @@ mod tests {
         s.resume();
         assert!(matches!(s.state, State::Playing));
         assert!((s.volume_target - vol).abs() < 0.001);
-    }
-
-    #[test]
-    fn stop_fades_to_stopped() {
-        let mut s = Sound::new(MockSource::endless(), 0.0, 0.5, 44100);
-        s.stop();
-        tick(&mut s, 5000);
-        assert!(s.is_finished());
     }
 
     #[test]

@@ -23,9 +23,10 @@
 //! - [`Source`] — trait for anything that produces audio
 //! - [`Effect`] — trait for DSP effects
 //! - [`FileSource`] — loads or streams WAV, OGG, FLAC, and MP3 files
-//! - [`DecodePool`] — background thread pool for streaming decode
 //! - [`Oscillator`] — band-limited synthesized waveform source with six shapes
 //! - [`Adsr`] — ADSR amplitude envelope with linear or exponential curves
+//! - [`DecodePool`] — background thread pool for streaming decode.
+//!   Only needed when using [`FileSource::stream`].
 
 mod engine;
 mod error;

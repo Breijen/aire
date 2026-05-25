@@ -10,7 +10,7 @@ struct GroupState {
     pan: f32,
 }
 
-impl GroupState {
+impl Default for GroupState {
     fn default() -> Self {
         Self { volume: 1.0, pan: 0.5 }
     }
@@ -35,46 +35,32 @@ impl Mixer {
         }
     }
 
+    fn find_source(&mut self, id: SoundId) -> Option<&mut Sound> {
+        self.sources.iter_mut()
+            .find(|(sid, _)| *sid == id)
+            .map(|(_, s)| s.as_mut())
+    }
+
     pub fn apply(&mut self, command: Command) {
         match command {
             Command::AddSound(id, sound) => self.sources.push((id, sound)),
-            Command::Pause(id) => {
-                if let Some((_, s)) = self.sources.iter_mut().find(|(sid, _)| *sid == id) {
-                    s.pause();
-                }
-            }
-            Command::Resume(id) => {
-                if let Some((_, s)) = self.sources.iter_mut().find(|(sid, _)| *sid == id) {
-                    s.resume();
-                }
-            }
-            Command::Stop(id) => {
-                if let Some((_, s)) = self.sources.iter_mut().find(|(sid, _)| *sid == id) {
-                    s.stop();
-                }
-            }
-            Command::SetVolume(id, db) => {
-                if let Some((_, s)) = self.sources.iter_mut().find(|(sid, _)| *sid == id) {
-                    s.set_volume(db);
-                }
-            }
-            Command::SetPan(id, pan) => {
-                if let Some((_, s)) = self.sources.iter_mut().find(|(sid, _)| *sid == id) {
-                    s.set_pan(pan);
-                }
-            }
+            Command::Pause(id)           => { if let Some(s) = self.find_source(id) { s.pause(); } }
+            Command::Resume(id)          => { if let Some(s) = self.find_source(id) { s.resume(); } }
+            Command::Stop(id)            => { if let Some(s) = self.find_source(id) { s.stop(); } }
+            Command::SetVolume(id, db)   => { if let Some(s) = self.find_source(id) { s.set_volume(db); } }
+            Command::SetPan(id, pan)     => { if let Some(s) = self.find_source(id) { s.set_pan(pan); } }
             Command::SetMasterVolume(db) => {
                 self.master_volume = utils::convert_db(db);
             }
             Command::SetGroupVolume(name, db) => {
-                self.groups.entry(name).or_insert_with(GroupState::default).volume = utils::convert_db(db);
+                self.groups.entry(name).or_default().volume = utils::convert_db(db);
             }
             Command::SetGroupPan(name, pan) => {
                 // pan is already clamped at the GroupHandle entry point
-                self.groups.entry(name).or_insert_with(GroupState::default).pan = pan;
+                self.groups.entry(name).or_default().pan = pan;
             }
             Command::AddToGroup(id, name) => {
-                self.groups.entry(name.clone()).or_insert_with(GroupState::default);
+                self.groups.entry(name.clone()).or_default();
                 self.sound_groups.entry(id).or_insert_with(Vec::new).push(name);
             }
         }
