@@ -16,13 +16,16 @@
 //! # Key types
 //!
 //! - [`Engine`] — opens the output device and drives the audio thread
+//! - [`EngineConfig`] — optional configuration (command buffer size, etc.)
 //! - [`Sound`] — wraps a source with volume, pan, and an effect chain
 //! - [`SoundHandle`] — controls a playing sound from any thread
+//! - [`GroupHandle`] — controls volume and pan for a named category of sounds
 //! - [`Source`] — trait for anything that produces audio
 //! - [`Effect`] — trait for DSP effects
-//! - [`FileSource`] — plays WAV files
-//! - [`Oscillator`] — synthesized waveform source with six shapes
-//! - [`Adsr`] — ADSR envelope effect
+//! - [`FileSource`] — loads or streams WAV, OGG, FLAC, and MP3 files
+//! - [`DecodePool`] — background thread pool for streaming decode
+//! - [`Oscillator`] — band-limited synthesized waveform source with six shapes
+//! - [`Adsr`] — ADSR amplitude envelope with linear or exponential curves
 
 mod engine;
 mod error;
