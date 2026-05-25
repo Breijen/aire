@@ -47,8 +47,8 @@ impl Mixer {
             Command::Pause(id)           => { if let Some(s) = self.find_source(id) { s.pause(); } }
             Command::Resume(id)          => { if let Some(s) = self.find_source(id) { s.resume(); } }
             Command::Stop(id)            => { if let Some(s) = self.find_source(id) { s.stop(); } }
-            Command::SetVolume(id, db)   => { if let Some(s) = self.find_source(id) { s.set_volume(db); } }
-            Command::SetPan(id, pan)     => { if let Some(s) = self.find_source(id) { s.set_pan(pan); } }
+            Command::SetVolume(id, db)   => { if let Some(s) = self.find_source(id) { s.volume(db); } }
+            Command::SetPan(id, pan)     => { if let Some(s) = self.find_source(id) { s.pan(pan); } }
             Command::SetMasterVolume(db) => {
                 self.master_volume = utils::convert_db(db);
             }

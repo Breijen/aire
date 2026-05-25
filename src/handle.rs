@@ -34,13 +34,13 @@ impl SoundHandle {
     }
 
     /// Sets the volume in decibels.
-    pub fn set_volume(&self, db: f32) -> Result<(), AireError> {
+    pub fn volume(&self, db: f32) -> Result<(), AireError> {
         self.tx.try_send(Command::SetVolume(self.id, db))
             .map_err(|_| AireError::CommandBufferFull)
     }
 
     /// Sets the pan from `0.0` (full left) to `1.0` (full right).
-    pub fn set_pan(&self, pan: f32) -> Result<(), AireError> {
+    pub fn pan(&self, pan: f32) -> Result<(), AireError> {
         self.tx.try_send(Command::SetPan(self.id, pan))
             .map_err(|_| AireError::CommandBufferFull)
     }
@@ -67,7 +67,7 @@ impl GroupHandle {
     }
 
     /// Sets the group volume in decibels, `0.0` is unity gain.
-    pub fn set_volume(&self, db: f32) -> Result<(), AireError> {
+    pub fn volume(&self, db: f32) -> Result<(), AireError> {
         self.tx.try_send(Command::SetGroupVolume(self.name.clone(), db))
             .map_err(|_| AireError::CommandBufferFull)
     }
@@ -75,7 +75,7 @@ impl GroupHandle {
     /// Sets the group stereo balance from `0.0` (full left) to `1.0` (full right).
     /// `0.5` is center and is fully transparent. This is a balance (trim) control, not a pan position...
     /// individual sound panning is set via [`SoundHandle::set_pan`].
-    pub fn set_pan(&self, pan: f32) -> Result<(), AireError> {
+    pub fn pan(&self, pan: f32) -> Result<(), AireError> {
         self.tx.try_send(Command::SetGroupPan(self.name.clone(), pan.clamp(0.0, 1.0)))
             .map_err(|_| AireError::CommandBufferFull)
     }

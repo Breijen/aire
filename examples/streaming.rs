@@ -13,13 +13,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Stream the file instead of loading it all into memory.
     let source = FileSource::stream("./examples/example.ogg", rate, &pool)?.looping();
-    let handle = engine.add_sound(Sound::new(source, 0.0, 0.5, rate))?;
+    let handle = engine.add_sound(Sound::new(source, rate))?;
 
     println!("streaming (looping)...");
     thread::sleep(Duration::from_secs(5));
 
     println!("volume down");
-    handle.set_volume(-12.0)?;
+    handle.volume(-12.0)?;
     thread::sleep(Duration::from_secs(3));
 
     println!("stop");

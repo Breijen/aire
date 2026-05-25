@@ -32,20 +32,18 @@ pub struct Sound {
 impl Sound {
     /// Creates a new sound.
     ///
-    /// `volume_db` is the initial volume in decibels (0.0 is unity gain). `pan`
-    /// is stereo position from `0.0` (full left) to `1.0` (full right), with
-    /// `0.5` as center. `sample_rate` should match the device rate.
-    pub fn new(source: impl Source + 'static, volume_db: f32, pan: f32, sample_rate: u32) -> Self {
-        let volume = convert_db(volume_db);
-        let pan = pan.clamp(0.0, 1.0);
+    /// `volume` is the defaulted to 0db. `pan`
+    /// is defaulted to 0.5 (center). `sample_rate` should match the device rate.
+    pub fn new(source: impl Source + 'static, sample_rate: u32) -> Self {
+        let volume = convert_db(0.0);
         let smooth_coeff = 1.0 - (-TAU * 30.0 / sample_rate as f32).exp();
         Self {
             source: Box::new(source),
             volume,
             volume_target: volume,
             pause_volume: volume,
-            pan,
-            pan_target: pan,
+            pan: 0.5,
+            pan_target: 0.5,
             smooth_coeff,
             effects: Vec::new(),
             state: State::Playing,
@@ -92,13 +90,13 @@ impl Sound {
     }
 
     /// Sets the volume in decibels.
-    pub fn set_volume(&mut self, volume_db: f32) -> &mut Self {
+    pub fn volume(&mut self, volume_db: f32) -> &mut Self {
         self.volume_target = convert_db(volume_db);
         self
     }
 
     /// Sets the pan from `0.0` (full left) to `1.0` (full right).
-    pub fn set_pan(&mut self, pan: f32) -> &mut Self {
+    pub fn pan(&mut self, pan: f32) -> &mut Self {
         self.pan_target = pan.clamp(0.0, 1.0);
         self
     }
@@ -191,7 +189,7 @@ mod tests {
 
     #[test]
     fn resume_mid_fade_restores_volume() {
-        let mut s = Sound::new(MockSource::endless(), 0.0, 0.5, 44100);
+        let mut s = Sound::new(MockSource::endless(), 44100);
         let vol = s.volume_target;
         s.pause();
         tick(&mut s, 100);
@@ -202,7 +200,7 @@ mod tests {
 
     #[test]
     fn double_stop_does_not_panic() {
-        let mut s = Sound::new(MockSource::endless(), 0.0, 0.5, 44100);
+        let mut s = Sound::new(MockSource::endless(), 44100);
         s.stop();
         tick(&mut s, 5000);
         s.stop();
@@ -210,7 +208,7 @@ mod tests {
 
     #[test]
     fn finished_when_source_exhausted() {
-        let mut s = Sound::new(MockSource::finite(10), 0.0, 0.5, 44100);
+        let mut s = Sound::new(MockSource::finite(10), 44100);
         tick(&mut s, 10);    // source exhausts, triggers FadingToStop
         tick(&mut s, 5000);  // wait for fade to complete
         assert!(s.is_finished());

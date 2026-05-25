@@ -9,7 +9,7 @@
 //! let rate = engine.sample_rate();
 //!
 //! let osc = Oscillator::new(Waveform::Sine, 440.0, rate).duration(2000);
-//! let _handle = engine.add_sound(Sound::new(osc, 0.0, 0.5, rate))?;
+//! let _handle = engine.add_sound(Sound::new(osc, rate))?;
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
