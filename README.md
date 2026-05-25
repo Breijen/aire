@@ -33,7 +33,7 @@ use std::{thread, time::Duration};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let engine = Engine::new()?;
-    let source = FileSource::new("sound.wav", engine.sample_rate())?;
+    let source = FileSource::load("sound.wav", engine.sample_rate())?;
     let _handle = engine.add_sound(Sound::new(source, 0.0, 0.5, engine.sample_rate()))?;
 
     thread::sleep(Duration::from_secs(5));
@@ -70,7 +70,7 @@ use std::{thread, time::Duration};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let engine = Engine::new()?;
 
-    let source = FileSource::new("music.wav", engine.sample_rate())?.looping();
+    let source = FileSource::load("music.wav", engine.sample_rate())?.looping();
     let handle = engine.add_sound(Sound::new(source, 0.0, 0.5, engine.sample_rate()))?;
 
     thread::sleep(Duration::from_secs(3));
