@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use ringbuf::{HeapCons, HeapProd, HeapRb};
 use ringbuf::traits::{Observer, Producer, Split};
 
@@ -19,13 +19,22 @@ struct StreamTask {
     finished: Arc<AtomicBool>,
 }
 
+/// A pool of background threads that incrementally decode streaming audio
+/// into ring buffers.
+///
+/// Create one pool and keep it alive for as long as any streamed [`FileSource`]
+/// is playing.
 pub struct DecodePool {
     senders: Vec<Sender<StreamTask>>,
     next: AtomicUsize,
-    _threads: Vec<JoinHandle<()>>,
+    threads: Vec<JoinHandle<()>>,
 }
 
 impl DecodePool {
+    /// Creates a pool with `num_threads` background decode threads.
+    ///
+    /// One thread is usually sufficient; increase if you stream many sources
+    /// simultaneously and observe buffer underruns.
     pub fn new(num_threads: usize) -> Self {
         assert!(num_threads > 0, "DecodePool needs at least one thread");
 
@@ -38,11 +47,9 @@ impl DecodePool {
             threads.push(thread::spawn(move || worker(rx)));
         }
 
-        Self { senders, next: AtomicUsize::new(0), _threads: threads }
+        Self { senders, next: AtomicUsize::new(0), threads }
     }
 
-    /// Creates a ring buffer, registers the decoder with a worker thread,
-    /// and returns finished flag to the caller.
     pub(crate) fn register(
         &self,
         mut decoder: Box<dyn StreamDecoder>,
@@ -50,7 +57,7 @@ impl DecodePool {
     ) -> (HeapCons<f32>, Arc<AtomicBool>) {
         let (mut producer, consumer) = HeapRb::<f32>::new(RING_BUF_SIZE).split();
         let finished = Arc::new(AtomicBool::new(false));
-        
+
         let mut scratch = Vec::with_capacity(CHUNK_SIZE);
         while producer.occupied_len() < RING_BUF_SIZE / 2 && !decoder.finished() {
             scratch.clear();
@@ -61,9 +68,20 @@ impl DecodePool {
         let task = StreamTask { decoder, producer, looping, finished: finished.clone() };
 
         let idx = self.next.fetch_add(1, Ordering::Relaxed) % self.senders.len();
-        self.senders[idx].send(task).ok();
+        if self.senders[idx].send(task).is_err() {
+            finished.store(true, Ordering::Relaxed);
+        }
 
         (consumer, finished)
+    }
+}
+
+impl Drop for DecodePool {
+    fn drop(&mut self) {
+        self.senders.clear();
+        for handle in self.threads.drain(..) {
+            handle.join().ok();
+        }
     }
 }
 
@@ -72,8 +90,13 @@ fn worker(rx: Receiver<StreamTask>) {
     let mut scratch: Vec<f32> = Vec::with_capacity(CHUNK_SIZE);
 
     loop {
-        while let Ok(task) = rx.try_recv() {
-            tasks.push(task);
+        let mut disconnected = false;
+        loop {
+            match rx.try_recv() {
+                Ok(task) => tasks.push(task),
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => { disconnected = true; break; }
+            }
         }
 
         let mut did_work = false;
@@ -101,6 +124,10 @@ fn worker(rx: Receiver<StreamTask>) {
         }
 
         tasks.retain(|t| !t.finished.load(Ordering::Relaxed));
+
+        if disconnected && tasks.is_empty() {
+            return;
+        }
 
         if !did_work {
             thread::sleep(Duration::from_millis(2));

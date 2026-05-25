@@ -223,8 +223,6 @@ impl FileSource {
 
 impl Source for FileSource {
     fn fill_buffer(&mut self, buffer: &mut [(f32, f32)]) {
-        // Copy primitive fields to locals so the borrow checker doesn't see
-        // a conflict between &mut self.inner and reads of self.channels / self.looping.
         let channels = self.channels;
         let looping  = self.looping;
 
@@ -247,14 +245,14 @@ impl Source for FileSource {
                     *frame = sample;
                 }
             }
-            FileSourceInner::Streaming { consumer, .. } => { // looping handled by pool thread
+            FileSourceInner::Streaming { consumer, .. } => { 
                 for frame in buffer.iter_mut() {
                     if consumer.occupied_len() >= channels {
                         let mut tmp = [0.0f32; 2];
                         consumer.pop_slice(&mut tmp[..channels]);
                         *frame = if channels == 2 { (tmp[0], tmp[1]) } else { (tmp[0], tmp[0]) };
                     } else {
-                        *frame = (0.0, 0.0); // underrun — pool hasn't filled yet
+                        *frame = (0.0, 0.0);
                     }
                 }
             }
