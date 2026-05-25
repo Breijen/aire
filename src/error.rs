@@ -7,7 +7,9 @@ pub enum AireError {
     /// thread can process them. The buffer holds 256 commands.
     CommandBufferFull,
     /// Sound file extension is not supported (yet).
-    FileExtNotSupported(String)
+    FileExtNotSupported(String),
+    /// This format does not support streaming; use FileSource::load() instead.
+    StreamingNotSupported(String),
 }
 
 impl std::fmt::Display for AireError {
@@ -15,6 +17,7 @@ impl std::fmt::Display for AireError {
         match self {
             AireError::CommandBufferFull => write!(f, "command buffer full"),
             AireError::FileExtNotSupported(ext) => write!(f, "unsupported format: .{}", ext),
+            AireError::StreamingNotSupported(ext) => write!(f, "streaming not supported for .{}; use FileSource::load()", ext),
         }
     }
 }
