@@ -36,9 +36,9 @@ pub(crate) mod streaming;
 
 pub use streaming::pool::DecodePool;
 
-pub use engine::Engine;
+pub use engine::{Engine, EngineConfig};
 pub use error::AireError;
-pub use handle::SoundHandle;
+pub use handle::{GroupHandle, SoundHandle};
 pub use source::Source;
 pub use source::file::FileSource;
 pub use source::oscillator::{Oscillator, Waveform};
